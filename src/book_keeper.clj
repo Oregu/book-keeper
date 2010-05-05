@@ -84,7 +84,7 @@
 	 (println "Shelf" id "contains" (count shelf) "books.\n")))))
 
 (defn print-lib
-  "Prints contents of the whole shelfs in Library."
+  "Prints contents of the whole shelves in Library."
   []
   (dosync
    (doseq [shelf-rec @library] (print-shelf (key shelf-rec)
