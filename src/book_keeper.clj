@@ -89,24 +89,3 @@
   (dosync
    (doseq [shelf-rec @library] (print-shelf (key shelf-rec)
 					(val shelf-rec)))))
-
-(defn test-keeper []
-  (let [friend-shelf (create-shelf)
-	other-friend-shelf (create-shelf)
-	caroll (create-book "Through the Looking Glass" ["Lewis Carroll"])
-	wilde (create-book "The Complete Short Stories" ["Oscar Wilde"])
-	hemingway (create-book "A Moveable Feast" ["Ernest Hemingway"])
-	stevenson (create-book "Dr Jekkyl..." ["Stevenson"])]
-
-     (println "1) ")
-     (print-lib)
-     (add-book caroll)
-     (add-book wilde)
-     (println "2) ")
-     (print-lib)
-     (add-book friend-shelf hemingway)
-     (add-book other-friend-shelf stevenson)
-     (remove-book caroll)
-     (println "After all: ")
-     (print-lib)
-     (flush)))
