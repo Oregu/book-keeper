@@ -1,1 +1,3 @@
 Book keeper app for RubyLearning.com Clojure course.
+
+TODO: Implement tests with clojure test framework
