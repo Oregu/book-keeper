@@ -2,6 +2,7 @@
             Clojure 101 course."
        :author "Oleg Burykin"}
   book-keeper
+  (:use (clojure.contrib.seq-utils/flatten))
   (:import java.text.DateFormat))
 
 (defstruct #^{:doc "Basic structure for book information."}
@@ -61,6 +62,13 @@
      (dosync
       (alter library update-in [shelf] disj book))))
 
+(defn- replace-book
+  "Replaces book in the given shelf"
+  [shelf old-book new-book]
+  (-> shelf
+      (disj old-book)
+      (conj new-book)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loan API
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -73,33 +81,47 @@
 	 (not (nil? (book-meta :loan-data)))
 	 false))))
 
-(defn add-loan
-  "Make this book loaned to friend. Friend here represented as his book-shelf id. Potentially could be person record, which has his shelf id assigned to it. TODO: Add exceptions throwning, in case if no such book on shelf, or already loaned, or when already have that book."
-  ([to-person book] (add-loan default-shelf to-person book))
+(defn- loan-book
+  [lib from-person to-person book opts-map]
+  (let [book-loaned-to (with-meta book
+			 {:loan-data (conj opts-map {:to to-person})})
+	book-loaned-from (with-meta book
+			   {:loan-data (conj opts-map {:from from-person})})]
+    (-> lib
+	(update-in [from-person] replace-book book book-loaned-to)
+	(update-in [to-person] conj book-loaned-from))))
+
+(defn- return-book
+  [lib to-person from-person book]
+  (let [wo-meta (with-meta book nil)]
+    (-> lib
+	(update-in [to-person] replace-book book wo-meta)
+	(update-in [from-person] disj book))))
+
+(defn add-loan!
+  "Make this book loaned to friend.
+Friend here represented as his book-shelf id.
+Potentially could be person record, which has his shelf id assigned to it.
+TODO: Add exceptions throwning, in case if no such book on shelf,
+       or already loaned, or when already have that book."
+  ([to-person book] (add-loan! default-shelf to-person book))
   ([from-person to-person book & options]
      (dosync
       (ensure library)
       (if (not (is-loaned? (get-book from-person book)))
-	(let [opts (apply hash-map options)
-	      book-loaned-to (with-meta book {:loan-data (conj opts {:to to-person})})
-	      book-loaned-from (with-meta book {:loan-data (conj opts {:from from-person})})]
-	  (alter library update-in [from-person] disj book)
-	  (alter library update-in [from-person] conj book-loaned-to)
-	  (alter library update-in [to-person] conj book-loaned-from))
-	false))))
+	(alter library loan-book from-person to-person book (apply hash-map options))
+	(println "Book is already loaned to someone")))))
 
-(defn accept-return
+(defn accept-return!
   "Accept return of book from person"
-  ([from-person book] (accept-return default-shelf from-person book))
+  ([from-person book] (accept-return! default-shelf from-person book))
   ([to-person from-person book]
      (dosync
       (ensure library)
       (if (is-loaned? (get-book to-person book))
 	(let [wo-meta (with-meta book nil)]
-	  (alter library update-in [to-person] disj book)
-	  (alter library update-in [to-person] conj wo-meta)
-	  (alter library update-in [from-person] disj book))
-	false))))
+	  (alter library return-book to-person from-person book))
+	(println "Book wasn't loaned!")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Empty functions
@@ -129,7 +151,7 @@
 
 (defn loan-string
   [book]
-  (let [loan-data ((meta book) :loan-data)
+  (let [loan-data (-> book meta :loan-data)
 	from (loan-data :from)
 	to (loan-data :to)
 	ret-by (loan-data :return-by)]
