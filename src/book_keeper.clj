@@ -1,13 +1,18 @@
 (ns #^{:doc "The code for exercise 3 of week 2 of the RubyLearning.org 
             Clojure 101 course."
        :author "Oleg Burykin"}
-  book-keeper)
+  book-keeper
+  (:import java.text.DateFormat))
 
 (defstruct #^{:doc "Basic structure for book information."}
   book :title :authors)
 
 (def #^{:doc "Place where book shelves live."}
      library (ref (sorted-map)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Shelf API
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn create-shelf
   "Creates new book-shelf and returns it's id."
@@ -28,13 +33,19 @@
   [shelf]
   #{})
 
-(defn empty-library
-  "Empty whole library."
-  []
-  (dosync
-;; (doseq [shelf @library] (empty-shelf (val shelf)))
-   (alter library empty)
-   (def default-shelf (create-shelf))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Book API
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn create-book
+  "Creates a book."
+  [title authors] (struct book title authors))
+
+(defn get-book
+  "Gets a copy of a book from the person shelf. For now person is the same as shelf id."
+  ([book] (get-book default-shelf book))
+  ([shelf book]
+     ((@library shelf) book)))
 
 (defn add-book
   "Adds book to shelf (default one using if not specified)."
@@ -50,9 +61,60 @@
      (dosync
       (alter library update-in [shelf] disj book))))
 
-(defn create-book
-  "Creates a book."
-  [title authors] (struct book title authors))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Loan API
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn is-loaned?
+  "Predicate to test whether book is loaned to somebody."
+  ([book]
+     (let [book-meta (meta book)]
+       (if book-meta
+	 (not (nil? (book-meta :loan-data)))
+	 false))))
+
+(defn add-loan
+  "Make this book loaned to friend. Friend here represented as his book-shelf id. Potentially could be person record, which has his shelf id assigned to it. TODO: Add exceptions throwning, in case if no such book on shelf, or already loaned, or when already have that book."
+  ([to-person book] (add-loan default-shelf to-person book))
+  ([from-person to-person book & options]
+     (dosync
+      (ensure library)
+      (if (not (is-loaned? (get-book from-person book)))
+	(let [opts (apply hash-map options)
+	      book-loaned-to (with-meta book {:loan-data (conj opts {:to to-person})})
+	      book-loaned-from (with-meta book {:loan-data (conj opts {:from from-person})})]
+	  (alter library update-in [from-person] disj book)
+	  (alter library update-in [from-person] conj book-loaned-to)
+	  (alter library update-in [to-person] conj book-loaned-from))
+	false))))
+
+(defn accept-return
+  "Accept return of book from person"
+  ([from-person book] (accept-return default-shelf from-person book))
+  ([to-person from-person book]
+     (dosync
+      (ensure library)
+      (if (is-loaned? (get-book to-person book))
+	(let [wo-meta (with-meta book nil)]
+	  (alter library update-in [to-person] disj book)
+	  (alter library update-in [to-person] conj wo-meta)
+	  (alter library update-in [from-person] disj book))
+	false))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Empty functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn empty-library
+  "Empty whole library."
+  []
+  (dosync
+   (alter library empty)
+   (def default-shelf (create-shelf))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Print functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn comma-sep
   "Creates a comma-separated string from a sequence of names."
@@ -65,10 +127,28 @@
   (println "Title:" title)
   (println "  Authors: " (comma-sep authors)))
 
+(defn loan-string
+  [book]
+  (let [loan-data ((meta book) :loan-data)
+	from (loan-data :from)
+	to (loan-data :to)
+	ret-by (loan-data :return-by)]
+    (str "(" 
+	 (if to (str "book is loaned to: " to " ") "")
+	 (if from (str "book is taken from: " from " ") "")
+	 (if ret-by
+	   (str "Should be returned by "
+		(.format (DateFormat/getDateInstance DateFormat/SHORT) (.getTime ret-by)))
+	   "")
+	 ")")))
+
 (defn simple-print-book
   "Prints out information about book in a simplified manner"
-  [{:keys [title]}]
-   (println "Title:" title))
+  [{:keys [title] :as book}]
+   (println title
+	    (if (is-loaned? book)
+	      (loan-string book)
+	      "")))
 
 (defn print-shelf
   "Prints books from a given shelf (prints default shelf books if no shelf given)."
@@ -88,4 +168,4 @@
   []
   (dosync
    (doseq [shelf-rec @library] (print-shelf (key shelf-rec)
-					(val shelf-rec)))))
+					    (val shelf-rec)))))
