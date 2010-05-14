@@ -27,8 +27,8 @@
 
      (add-loan! default-shelf other-friend-shelf jerome
 		:return-by (GregorianCalendar. 2010 7 1))
-     (add-loan! default-shelf other-friend-shelf caroll)
-     (add-loan! default-shelf friend-shelf harris)
+     (add-loan! default-shelf friend-shelf caroll)
+     (add-loan! default-shelf other-friend-shelf harris)
 
      #_(println "2) ")
      #_(print-lib)
@@ -38,17 +38,6 @@
      (println "After all: ")
      (print-lib)
      (flush)))
-
-(defn test-books-written-by-karl []
-  (get-by-author best-sellers "Karl Rove"))
-
-(defn test-book-by-many-authors []
-  (get-by-author-count best-sellers))
-
-(defn test-loaners
-  ([] (test-loaners default-shelf))
-  ([shelf]
-     (get-loaners (@library shelf))))
 
 (defstruct #^{:doc "Basic structure for book information."}
   book-amazon :title :authors :price)
@@ -95,3 +84,19 @@
            "The Kind Diet"
            ["Alicia Silverstone","Neal D. Barnard M.D."]
            16.00)])
+
+(defn test-books-written-by-karl []
+  (get-by-author best-sellers "Karl Rove"))
+
+(defn test-book-by-many-authors []
+  (get-by-author-count best-sellers))
+
+(defn test-borrowers
+  ([] (test-loaners default-shelf))
+  ([shelf]
+     (book-borrowers (@library shelf))))
+
+(defn test-awful-borrowers
+  ([] (test-awful-borrowers default-shelf))
+  ([shelf]
+     (get-awful-borrowers (@library shelf))))
